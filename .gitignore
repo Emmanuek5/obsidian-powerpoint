@@ -33,7 +33,3 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Finder (MacOS) folder config
 .DS_Store
 
-# Obsidian plugin build artifacts
-main.js
-main.js.map
-*.js.map
