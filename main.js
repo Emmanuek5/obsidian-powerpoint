@@ -27277,10 +27277,46 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
         windowsHide: true
       });
       console.log(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
-      const command = `"${loPath}" --headless --convert-to pdf --outdir "${cacheDir}" "${pptxPath}"`;
+      try {
+        console.log("[PPTX Converter] Trying print-to-file method (better overflow handling)...");
+        const printCommand = `"${loPath}" --headless --print-to-file --outdir "${cacheDir}" "${pptxPath}"`;
+        await execAsync(printCommand, {
+          windowsHide: true,
+          timeout: 9e4
+        });
+        const printOutputPath = path.join(cacheDir, `${baseName}.pdf`);
+        if (fs.existsSync(printOutputPath)) {
+          fs.renameSync(printOutputPath, outputPdfPath);
+          console.log("[PPTX Converter] Print-to-file conversion successful");
+          return {
+            success: true,
+            pdfPath: outputPdfPath,
+            fromCache: false
+          };
+        }
+      } catch (printError) {
+        console.log("[PPTX Converter] Print method failed, trying convert method...");
+      }
+      const filterData = [
+        "ExportNotesPages=false",
+        "Quality=100",
+        "ReduceImageResolution=false",
+        "MaxImageResolution=600",
+        "EmbedStandardFonts=true",
+        "UseLosslessCompression=true",
+        "IsSkipEmptyPages=false",
+        "ExportBookmarks=true",
+        "OpenBookmarkLevels=-1",
+        "ExportFormFields=true",
+        "SelectPdfVersion=1"
+        // PDF 1.5 for better compatibility
+      ].join(":");
+      const command = `"${loPath}" --headless --convert-to "pdf:impress_pdf_Export:${filterData}" --outdir "${cacheDir}" "${pptxPath}"`;
+      console.log("[PPTX Converter] Converting with enhanced PDF export settings...");
       await execAsync(command, {
-        windowsHide: true
-        // This prevents the CMD window from showing on Windows
+        windowsHide: true,
+        timeout: 9e4
+        // 90 second timeout for large presentations
       });
       const generatedPdf = path.join(cacheDir, `${baseName}.pdf`);
       if (fs.existsSync(generatedPdf)) {

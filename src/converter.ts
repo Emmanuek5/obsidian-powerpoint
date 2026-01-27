@@ -118,10 +118,68 @@ async function tryLibreOfficeConversion(
       
       console.log(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
       
-      // Convert to PDF (silent on Windows to prevent CMD popup)
-      const command = `"${loPath}" --headless --convert-to pdf --outdir "${cacheDir}" "${pptxPath}"`;
+      // Method 1: Try print-to-file first (better overflow handling)
+      // This method uses the print subsystem which can better handle content
+      // that extends beyond slide boundaries
+      // Note: LibreOffice 25.8+ uses --print-to-file --outdir syntax
+      
+      try {
+        console.log('[PPTX Converter] Trying print-to-file method (better overflow handling)...');
+        // Correct syntax: --print-to-file --outdir {dir} {file}
+        // Output will be named same as input but with .pdf extension
+        const printCommand = `"${loPath}" --headless --print-to-file --outdir "${cacheDir}" "${pptxPath}"`;
+        await execAsync(printCommand, { 
+          windowsHide: true,
+          timeout: 90000
+        });
+        
+        // LibreOffice names the output file same as input but with .pdf
+        const printOutputPath = path.join(cacheDir, `${baseName}.pdf`);
+        
+        if (fs.existsSync(printOutputPath)) {
+          fs.renameSync(printOutputPath, outputPdfPath);
+          console.log('[PPTX Converter] Print-to-file conversion successful');
+          return { 
+            success: true, 
+            pdfPath: outputPdfPath,
+            fromCache: false 
+          };
+        }
+      } catch (printError) {
+        console.log('[PPTX Converter] Print method failed, trying convert method...');
+      }
+      
+      // Method 2: Fall back to convert-to with maximum quality settings
+      // Using impress_pdf_Export filter with options to preserve content:
+      // - ExportNotesPages=false: Don't export notes
+      // - Quality=100: Maximum quality
+      // - ReduceImageResolution=false: Keep full image resolution
+      // - MaxImageResolution=600: High DPI for sharp images
+      // - EmbedStandardFonts=true: Embed all fonts to prevent reflow
+      // - UseLosslessCompression=true: No data loss
+      // - IsSkipEmptyPages=false: Keep all pages
+      // - ExportBookmarks=true: Preserve structure
+      // - OpenBookmarkLevels=-1: All bookmarks expanded
+      const filterData = [
+        'ExportNotesPages=false',
+        'Quality=100',
+        'ReduceImageResolution=false',
+        'MaxImageResolution=600',
+        'EmbedStandardFonts=true',
+        'UseLosslessCompression=true',
+        'IsSkipEmptyPages=false',
+        'ExportBookmarks=true',
+        'OpenBookmarkLevels=-1',
+        'ExportFormFields=true',
+        'SelectPdfVersion=1'  // PDF 1.5 for better compatibility
+      ].join(':');
+      
+      const command = `"${loPath}" --headless --convert-to "pdf:impress_pdf_Export:${filterData}" --outdir "${cacheDir}" "${pptxPath}"`;
+      
+      console.log('[PPTX Converter] Converting with enhanced PDF export settings...');
       await execAsync(command, { 
-        windowsHide: true  // This prevents the CMD window from showing on Windows
+        windowsHide: true,
+        timeout: 90000  // 90 second timeout for large presentations
       });
       
       // LibreOffice generates PDF with original basename

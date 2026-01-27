@@ -22,6 +22,7 @@
     "typescript": "4.7.4"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "office-viewer": "^0.3.14",
     "pdfjs-dist": "^5.4.530"
   }
