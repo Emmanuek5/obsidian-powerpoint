@@ -6,6 +6,8 @@ A powerful Obsidian community plugin that allows you to open and read PowerPoint
 
 - **Custom View for PowerPoint Files**: Opens `.pptx` and `.ppt` files inside Obsidian instead of externally
 - **Perfect Rendering**: Uses LibreOffice to convert presentations to PDF for pixel-perfect display
+- **Intelligent PDF Caching**: Automatically caches converted PDFs based on file hash - subsequent opens are instant!
+- **Silent Conversion (Windows)**: No more CMD popup windows during conversion
 - **Thumbnail Sidebar**: Slim sidebar with compact slide thumbnails for quick navigation
 - **Navigation Toolbar**:
   - Previous/Next slide buttons
@@ -16,6 +18,7 @@ A powerful Obsidian community plugin that allows you to open and read PowerPoint
   - `+` / `-` : Zoom in/out
 - **Desktop Support**: Works on macOS, Windows, and Linux with LibreOffice installed
 - **Clean UI**: Matches Obsidian's design language (inspired by PDF viewer)
+- **Automatic Cache Cleanup**: Old cached PDFs (>7 days) are automatically removed
 
 ## Requirements
 
@@ -92,9 +95,10 @@ ln -s /Users/andrewemmanuel/Documents/Codes/obsidian-powerpoint obsidian-powerpo
 1. Install LibreOffice (see Requirements above)
 2. Place a `.pptx` or `.ppt` file in your Obsidian vault
 3. Click on the file in the file explorer
-4. The plugin will convert it to PDF (first time may take a few seconds)
-5. The presentation will open with perfect rendering
-6. Use the thumbnail sidebar, toolbar buttons, or keyboard shortcuts to navigate
+4. **First time**: The plugin will convert it to PDF (may take a few seconds) and cache it
+5. **Subsequent opens**: The cached PDF is loaded instantly - no reconversion needed!
+6. The presentation will open with perfect rendering
+7. Use the thumbnail sidebar, toolbar buttons, or keyboard shortcuts to navigate
 
 ### Keyboard Shortcuts
 
@@ -102,6 +106,22 @@ ln -s /Users/andrewemmanuel/Documents/Codes/obsidian-powerpoint obsidian-powerpo
 - **Down Arrow** (`↓`): Next slide
 - **Plus** (`+`): Zoom in
 - **Minus** (`-`): Zoom out
+
+### PDF Caching System
+
+The plugin uses an intelligent caching system to dramatically improve performance:
+
+- **Hash-based Caching**: Each PowerPoint file is hashed (MD5), and the converted PDF is stored with this hash
+- **Instant Loading**: If you open the same file again, the cached PDF is used - no reconversion needed
+- **Smart Invalidation**: If you modify the PowerPoint file, the hash changes and a new PDF is generated
+- **Cache Location**: PDFs are stored in your system's temp directory under `obsidian-pptx-cache/`
+- **Automatic Cleanup**: PDFs older than 7 days are automatically removed when the plugin loads
+- **No Manual Management**: The cache is completely transparent - you don't need to do anything!
+
+**Performance Impact**:
+
+- First open: 3-10 seconds (depending on presentation size)
+- Subsequent opens: <1 second (instant from cache)
 
 ## Testing
 
