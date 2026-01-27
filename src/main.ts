@@ -1,9 +1,13 @@
 import { Plugin, TFile } from 'obsidian';
 import { PptxView, PPTX_VIEW_TYPE } from './PptxView';
+import { cleanupOldCache } from './converter';
 
 export default class PowerPointPlugin extends Plugin {
   async onload() {
     console.log('[PPTX Plugin] Loading PowerPoint Viewer plugin');
+    
+    // Clean up old cached PDFs (older than 7 days)
+    cleanupOldCache(7);
 
     this.registerView(
       PPTX_VIEW_TYPE,

@@ -27213,32 +27213,87 @@ var import_util = require("util");
 var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
 var os = __toESM(require("os"));
+var crypto2 = __toESM(require("crypto"));
 var execAsync = (0, import_util.promisify)(import_child_process.exec);
-async function convertPptxToPdf(pptxPath) {
-  const tempDir = os.tmpdir();
+var CACHE_DIR = path.join(os.tmpdir(), "obsidian-pptx-cache");
+function initCacheDir() {
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+    console.log("[PPTX Converter] Created cache directory:", CACHE_DIR);
+  }
+}
+function getFileHash(filePath) {
+  const fileBuffer = fs.readFileSync(filePath);
+  const hashSum = crypto2.createHash("md5");
+  hashSum.update(fileBuffer);
+  return hashSum.digest("hex");
+}
+function getCachedPdf(pptxPath, fileHash) {
+  initCacheDir();
   const ext = path.extname(pptxPath);
   const baseName = path.basename(pptxPath, ext);
-  const outputPdfPath = path.join(tempDir, `${baseName}_${Date.now()}.pdf`);
-  const libreOfficeResult = await tryLibreOfficeConversion(pptxPath, tempDir, baseName, outputPdfPath);
-  if (libreOfficeResult.success) {
-    return libreOfficeResult;
+  const cachedPdfPath = path.join(CACHE_DIR, `${baseName}_${fileHash}.pdf`);
+  if (fs.existsSync(cachedPdfPath)) {
+    console.log("[PPTX Converter] Found cached PDF:", cachedPdfPath);
+    return cachedPdfPath;
   }
-  console.log("[PPTX Converter] LibreOffice not available, trying iframe...");
-  return await tryIframeConversion(pptxPath);
+  return null;
 }
-async function tryLibreOfficeConversion(pptxPath, tempDir, baseName, outputPdfPath) {
+async function convertPptxToPdf(pptxPath) {
+  try {
+    const fileHash = getFileHash(pptxPath);
+    const cachedPdf = getCachedPdf(pptxPath, fileHash);
+    if (cachedPdf) {
+      return {
+        success: true,
+        pdfPath: cachedPdf,
+        fromCache: true
+      };
+    }
+    console.log("[PPTX Converter] No cache found, converting...");
+    initCacheDir();
+    const ext = path.extname(pptxPath);
+    const baseName = path.basename(pptxPath, ext);
+    const outputPdfPath = path.join(CACHE_DIR, `${baseName}_${fileHash}.pdf`);
+    const libreOfficeResult = await tryLibreOfficeConversion(pptxPath, CACHE_DIR, baseName, outputPdfPath, fileHash);
+    if (libreOfficeResult.success) {
+      return libreOfficeResult;
+    }
+    console.log("[PPTX Converter] LibreOffice not available, trying iframe...");
+    return await tryIframeConversion(pptxPath);
+  } catch (error) {
+    console.error("[PPTX Converter] Error during conversion:", error);
+    return {
+      success: false,
+      error: `Conversion failed: ${error.message}`
+    };
+  }
+}
+async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfPath, fileHash) {
   const libreOfficePaths = getLibreOfficePaths();
   for (const loPath of libreOfficePaths) {
     try {
-      await execAsync(`"${loPath}" --version`);
-      const command = `"${loPath}" --headless --convert-to pdf --outdir "${tempDir}" "${pptxPath}"`;
-      await execAsync(command);
-      const generatedPdf = path.join(tempDir, `${baseName}.pdf`);
+      await execAsync(`"${loPath}" --version`, {
+        windowsHide: true
+      });
+      console.log(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
+      const command = `"${loPath}" --headless --convert-to pdf --outdir "${cacheDir}" "${pptxPath}"`;
+      await execAsync(command, {
+        windowsHide: true
+        // This prevents the CMD window from showing on Windows
+      });
+      const generatedPdf = path.join(cacheDir, `${baseName}.pdf`);
       if (fs.existsSync(generatedPdf)) {
         fs.renameSync(generatedPdf, outputPdfPath);
-        return { success: true, pdfPath: outputPdfPath };
+        console.log("[PPTX Converter] Conversion successful, cached at:", outputPdfPath);
+        return {
+          success: true,
+          pdfPath: outputPdfPath,
+          fromCache: false
+        };
       }
     } catch (e) {
+      console.log(`[PPTX Converter] Failed with ${loPath}:`, e.message);
       continue;
     }
   }
@@ -27250,7 +27305,9 @@ async function tryIframeConversion(pptxPath) {
     error: `LibreOffice not found.
 
 Desktop: Install LibreOffice for offline conversion:
-  brew install --cask libreoffice
+  \u2022 macOS: brew install --cask libreoffice
+  \u2022 Windows: Download from libreoffice.org
+  \u2022 Linux: sudo apt install libreoffice
 
 Mobile/Android: Local file viewing not supported yet.
 
@@ -27284,13 +27341,32 @@ function getLibreOfficePaths() {
     ];
   }
 }
-function cleanupPdf(pdfPath) {
+function cleanupOldCache(daysOld = 7) {
   try {
-    if (fs.existsSync(pdfPath)) {
-      fs.unlinkSync(pdfPath);
+    if (!fs.existsSync(CACHE_DIR)) {
+      return;
+    }
+    const now = Date.now();
+    const maxAge = daysOld * 24 * 60 * 60 * 1e3;
+    const files = fs.readdirSync(CACHE_DIR);
+    let deletedCount = 0;
+    for (const file of files) {
+      const filePath = path.join(CACHE_DIR, file);
+      const stats = fs.statSync(filePath);
+      if (now - stats.mtimeMs > maxAge) {
+        fs.unlinkSync(filePath);
+        deletedCount++;
+      }
+    }
+    if (deletedCount > 0) {
+      console.log(`[PPTX Converter] Cleaned up ${deletedCount} old cached PDF(s)`);
     }
   } catch (e) {
+    console.error("[PPTX Converter] Error cleaning cache:", e);
   }
+}
+function cleanupPdf(pdfPath) {
+  console.log("[PPTX Converter] PDF cleanup is now handled by cache management");
 }
 
 // src/PptxView.ts
@@ -27409,7 +27485,7 @@ var PptxView = class extends import_obsidian.FileView {
     if (!this.contentContainer)
       return;
     this.contentContainer.empty();
-    this.contentContainer.createDiv({ cls: "pptx-loading", text: "Converting presentation..." });
+    this.contentContainer.createDiv({ cls: "pptx-loading", text: "Loading presentation..." });
     try {
       const vaultPath = this.app.vault.adapter.basePath;
       const pptxPath = `${vaultPath}/${file.path}`;
@@ -27421,6 +27497,11 @@ var PptxView = class extends import_obsidian.FileView {
           text: result.error || "Failed to convert presentation"
         });
         return;
+      }
+      if (result.fromCache) {
+        console.log("[PPTX View] Loaded from cache:", result.pdfPath);
+      } else {
+        console.log("[PPTX View] Converted and cached:", result.pdfPath);
       }
       this.currentPdfPath = result.pdfPath;
       await this.loadPdf(result.pdfPath);
@@ -27584,6 +27665,7 @@ var PptxView = class extends import_obsidian.FileView {
 var PowerPointPlugin = class extends import_obsidian2.Plugin {
   async onload() {
     console.log("[PPTX Plugin] Loading PowerPoint Viewer plugin");
+    cleanupOldCache(7);
     this.registerView(
       PPTX_VIEW_TYPE,
       (leaf) => {

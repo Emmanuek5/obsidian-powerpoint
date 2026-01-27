@@ -152,14 +152,14 @@ export class PptxView extends FileView {
     if (!this.contentContainer) return;
 
     this.contentContainer.empty();
-    this.contentContainer.createDiv({ cls: 'pptx-loading', text: 'Converting presentation...' });
+    this.contentContainer.createDiv({ cls: 'pptx-loading', text: 'Loading presentation...' });
 
     try {
       // Get the absolute path of the PPTX file
       const vaultPath = (this.app.vault.adapter as any).basePath;
       const pptxPath = `${vaultPath}/${file.path}`;
 
-      // Convert PPTX to PDF
+      // Convert PPTX to PDF (with caching)
       const result = await convertPptxToPdf(pptxPath);
 
       if (!result.success || !result.pdfPath) {
@@ -169,6 +169,13 @@ export class PptxView extends FileView {
           text: result.error || 'Failed to convert presentation' 
         });
         return;
+      }
+
+      // Log cache status
+      if (result.fromCache) {
+        console.log('[PPTX View] Loaded from cache:', result.pdfPath);
+      } else {
+        console.log('[PPTX View] Converted and cached:', result.pdfPath);
       }
 
       this.currentPdfPath = result.pdfPath;
