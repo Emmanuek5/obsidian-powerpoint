@@ -294,7 +294,7 @@ export class PptxView extends FileView {
 
       const slideIndex = i;
       thumbnail.addEventListener('click', () => {
-        this.goToSlide(slideIndex);
+        void this.goToSlide(slideIndex);
       });
     }
   }

@@ -27649,7 +27649,7 @@ var PptxView = class extends import_obsidian.FileView {
       slideNum.setText(`${i + 1}`);
       const slideIndex = i;
       thumbnail.addEventListener("click", () => {
-        this.goToSlide(slideIndex);
+        void this.goToSlide(slideIndex);
       });
     }
   }
