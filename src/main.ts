@@ -1,6 +1,6 @@
-import { Plugin } from 'obsidian';
+import { Plugin, Notice } from 'obsidian';
 import { PptxView, PPTX_VIEW_TYPE } from './PptxView';
-import { cleanupOldCache } from './converter';
+import { cleanupOldCache, clearCache, getCacheStats } from './converter';
 
 export default class PowerPointPlugin extends Plugin {
   onload() {
@@ -30,6 +30,18 @@ export default class PowerPointPlugin extends Plugin {
           const leaf = this.app.workspace.getLeaf('tab');
           void leaf.openFile(file, { active: true });
         }
+      }
+    });
+
+    this.addCommand({
+      id: 'clear-pptx-cache',
+      name: 'Clear PowerPoint cache',
+      callback: () => {
+        const stats = getCacheStats();
+        const sizeMB = (stats.totalSize / (1024 * 1024)).toFixed(2);
+        clearCache();
+        new Notice(`Cleared PowerPoint cache: ${stats.count} files (${sizeMB} MB)`);
+        console.debug('[PPTX Plugin] Cache cleared:', stats);
       }
     });
   }

@@ -81,10 +81,10 @@ export class PptxView extends FileView {
 
     // Right side: toolbar + content
     this.mainContent = layoutContainer.createDiv({ cls: 'pptx-main-content' });
-    
+
     // Top toolbar
     this.createToolbar();
-    
+
     // Main slide content
     this.contentContainer = this.mainContent.createDiv({ cls: 'pptx-content' });
   }
@@ -96,7 +96,7 @@ export class PptxView extends FileView {
 
     // Left side: navigation
     const navGroup = toolbar.createDiv({ cls: 'pptx-toolbar-group' });
-    
+
     this.prevButton = navGroup.createEl('button', { cls: 'pptx-toolbar-btn', attr: { 'aria-label': 'Previous slide' } });
     this.prevButton.textContent = '‹';
     this.prevButton.addEventListener('click', () => this.previousSlide());
@@ -202,13 +202,13 @@ export class PptxView extends FileView {
       // Read PDF as binary data (can't use file:// URLs in browser)
       const pdfData = fs.readFileSync(pdfPath);
       const pdfUint8Array = new Uint8Array(pdfData);
-      
+
       // Load PDF document from binary data
       this.pdfDoc = await pdfjsLib.getDocument({ data: pdfUint8Array }).promise;
       this.totalSlides = this.pdfDoc.numPages;
 
       this.contentContainer.empty();
-      
+
       // Create main canvas for current slide
       this.mainCanvas = document.createElement('canvas');
       this.mainCanvas.className = 'pptx-main-canvas';
@@ -216,10 +216,10 @@ export class PptxView extends FileView {
 
       // Render first slide
       await this.renderSlide(0);
-      
+
       // Create thumbnails
       await this.createThumbnails();
-      
+
       this.updateSidebarState();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -236,7 +236,20 @@ export class PptxView extends FileView {
 
     const page = await this.pdfDoc.getPage(pageNum + 1); // PDF pages are 1-indexed
     const scale = 2.0 * this.zoomLevel; // Base scale for quality
-    const viewport = page.getViewport({ scale });
+
+    // Get the original viewport to check dimensions
+    const originalViewport = page.getViewport({ scale: 1 });
+
+    // Detect if the page is in portrait orientation (taller than wide)
+    // PowerPoint slides are typically landscape, so we rotate portrait pages by 90 degrees
+    let rotation = page.rotate;
+    if (originalViewport.height > originalViewport.width) {
+      // Page is portrait but should be landscape - rotate by 270 degrees (counter-clockwise)
+      rotation = (rotation + 270) % 360;
+      console.debug(`[PPTX View] Rotating slide ${pageNum + 1} by 270 degrees (portrait to landscape)`);
+    }
+
+    const viewport = page.getViewport({ scale, rotation });
 
     this.mainCanvas.width = viewport.width;
     this.mainCanvas.height = viewport.height;
@@ -255,30 +268,30 @@ export class PptxView extends FileView {
 
   private async createThumbnails(): Promise<void> {
     if (!this.thumbnailContainer || !this.pdfDoc) return;
-    
+
     this.thumbnailContainer.empty();
     this.pageCanvases = [];
-    
+
     for (let i = 0; i < this.totalSlides; i++) {
       const thumbnail = this.thumbnailContainer.createDiv({ cls: 'pptx-thumbnail' });
       if (i === this.currentSlide) {
         thumbnail.addClass('active');
       }
-      
+
       const preview = thumbnail.createDiv({ cls: 'pptx-thumbnail-preview' });
-      
+
       // Create thumbnail canvas
       const thumbCanvas = document.createElement('canvas');
       preview.appendChild(thumbCanvas);
       this.pageCanvases.push(thumbCanvas);
-      
+
       // Render thumbnail
       await this.renderThumbnail(i, thumbCanvas);
-      
+
       // Slide number overlay
       const slideNum = thumbnail.createDiv({ cls: 'pptx-thumbnail-number' });
       slideNum.setText(`${i + 1}`);
-      
+
       const slideIndex = i;
       thumbnail.addEventListener('click', () => {
         this.goToSlide(slideIndex);
@@ -290,9 +303,19 @@ export class PptxView extends FileView {
     if (!this.pdfDoc) return;
 
     const page = await this.pdfDoc.getPage(pageNum + 1);
+
+    // Get original viewport to check dimensions
+    const originalViewport = page.getViewport({ scale: 1 });
+
+    // Detect portrait pages and rotate to landscape
+    let rotation = page.rotate;
+    if (originalViewport.height > originalViewport.width) {
+      rotation = (rotation + 270) % 360;
+    }
+
     const targetWidth = 120;
-    const scale = (targetWidth / page.getViewport({ scale: 1 }).width) * 2; // 2x for clarity
-    const viewport = page.getViewport({ scale });
+    const scale = (targetWidth / page.getViewport({ scale: 1, rotation }).width) * 2; // 2x for clarity
+    const viewport = page.getViewport({ scale, rotation });
 
     canvas.width = viewport.width;
     canvas.height = viewport.height;
@@ -320,7 +343,7 @@ export class PptxView extends FileView {
 
   private updateThumbnailSelection(): void {
     if (!this.thumbnailContainer) return;
-    
+
     const thumbnails = this.thumbnailContainer.querySelectorAll('.pptx-thumbnail');
     thumbnails.forEach((thumb, index) => {
       if (index === this.currentSlide) {

@@ -27400,6 +27400,39 @@ function cleanupOldCache(daysOld = 7) {
     console.error("[PPTX Converter] Error cleaning cache:", e);
   }
 }
+function clearCache() {
+  try {
+    if (fs.existsSync(CACHE_DIR)) {
+      const files = fs.readdirSync(CACHE_DIR);
+      for (const file of files) {
+        fs.unlinkSync(path.join(CACHE_DIR, file));
+      }
+      console.debug("[PPTX Converter] Cache cleared");
+    }
+  } catch (e) {
+    console.error("[PPTX Converter] Error clearing cache:", e);
+  }
+}
+function getCacheStats() {
+  try {
+    if (!fs.existsSync(CACHE_DIR)) {
+      return { count: 0, totalSize: 0, path: CACHE_DIR };
+    }
+    const files = fs.readdirSync(CACHE_DIR);
+    let totalSize = 0;
+    for (const file of files) {
+      const stats = fs.statSync(path.join(CACHE_DIR, file));
+      totalSize += stats.size;
+    }
+    return {
+      count: files.length,
+      totalSize,
+      path: CACHE_DIR
+    };
+  } catch (e) {
+    return { count: 0, totalSize: 0, path: CACHE_DIR };
+  }
+}
 
 // src/PptxView.ts
 var fs2 = __toESM(require("fs"));
@@ -27577,7 +27610,13 @@ var PptxView = class extends import_obsidian.FileView {
       return;
     const page = await this.pdfDoc.getPage(pageNum + 1);
     const scale = 2 * this.zoomLevel;
-    const viewport = page.getViewport({ scale });
+    const originalViewport = page.getViewport({ scale: 1 });
+    let rotation = page.rotate;
+    if (originalViewport.height > originalViewport.width) {
+      rotation = (rotation + 270) % 360;
+      console.debug(`[PPTX View] Rotating slide ${pageNum + 1} by 270 degrees (portrait to landscape)`);
+    }
+    const viewport = page.getViewport({ scale, rotation });
     this.mainCanvas.width = viewport.width;
     this.mainCanvas.height = viewport.height;
     this.mainCanvas.style.width = `${viewport.width / 2}px`;
@@ -27618,9 +27657,14 @@ var PptxView = class extends import_obsidian.FileView {
     if (!this.pdfDoc)
       return;
     const page = await this.pdfDoc.getPage(pageNum + 1);
+    const originalViewport = page.getViewport({ scale: 1 });
+    let rotation = page.rotate;
+    if (originalViewport.height > originalViewport.width) {
+      rotation = (rotation + 270) % 360;
+    }
     const targetWidth = 120;
-    const scale = targetWidth / page.getViewport({ scale: 1 }).width * 2;
-    const viewport = page.getViewport({ scale });
+    const scale = targetWidth / page.getViewport({ scale: 1, rotation }).width * 2;
+    const viewport = page.getViewport({ scale, rotation });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     canvas.style.width = `${viewport.width / 2}px`;
@@ -27721,6 +27765,17 @@ var PowerPointPlugin = class extends import_obsidian2.Plugin {
           const leaf = this.app.workspace.getLeaf("tab");
           void leaf.openFile(file, { active: true });
         }
+      }
+    });
+    this.addCommand({
+      id: "clear-pptx-cache",
+      name: "Clear PowerPoint cache",
+      callback: () => {
+        const stats = getCacheStats();
+        const sizeMB = (stats.totalSize / (1024 * 1024)).toFixed(2);
+        clearCache();
+        new import_obsidian2.Notice(`Cleared PowerPoint cache: ${stats.count} files (${sizeMB} MB)`);
+        console.debug("[PPTX Plugin] Cache cleared:", stats);
       }
     });
   }
