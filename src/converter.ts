@@ -24,7 +24,7 @@ const CACHE_DIR = path.join(os.tmpdir(), 'obsidian-pptx-cache');
 function initCacheDir(): void {
   if (!fs.existsSync(CACHE_DIR)) {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
-    console.log('[PPTX Converter] Created cache directory:', CACHE_DIR);
+    console.debug('[PPTX Converter] Created cache directory:', CACHE_DIR);
   }
 }
 
@@ -49,7 +49,7 @@ function getCachedPdf(pptxPath: string, fileHash: string): string | null {
   const cachedPdfPath = path.join(CACHE_DIR, `${baseName}_${fileHash}.pdf`);
   
   if (fs.existsSync(cachedPdfPath)) {
-    console.log('[PPTX Converter] Found cached PDF:', cachedPdfPath);
+    console.debug('[PPTX Converter] Found cached PDF:', cachedPdfPath);
     return cachedPdfPath;
   }
   
@@ -75,7 +75,7 @@ export async function convertPptxToPdf(pptxPath: string): Promise<ConversionResu
     }
     
     // No cache, proceed with conversion
-    console.log('[PPTX Converter] No cache found, converting...');
+    console.debug('[PPTX Converter] No cache found, converting...');
     initCacheDir();
     
     const ext = path.extname(pptxPath);
@@ -89,7 +89,7 @@ export async function convertPptxToPdf(pptxPath: string): Promise<ConversionResu
     }
     
     // Fallback to Office Online iframe (mobile)
-    console.log('[PPTX Converter] LibreOffice not available, trying iframe...');
+    console.debug('[PPTX Converter] LibreOffice not available, trying iframe...');
     return await tryIframeConversion(pptxPath);
   } catch (error) {
     console.error('[PPTX Converter] Error during conversion:', error);
@@ -116,7 +116,7 @@ async function tryLibreOfficeConversion(
         windowsHide: true 
       });
       
-      console.log(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
+      console.debug(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
       
       // Method 1: Try print-to-file first (better overflow handling)
       // This method uses the print subsystem which can better handle content
@@ -124,7 +124,7 @@ async function tryLibreOfficeConversion(
       // Note: LibreOffice 25.8+ uses --print-to-file --outdir syntax
       
       try {
-        console.log('[PPTX Converter] Trying print-to-file method (better overflow handling)...');
+        console.debug('[PPTX Converter] Trying print-to-file method (better overflow handling)...');
         // Correct syntax: --print-to-file --outdir {dir} {file}
         // Output will be named same as input but with .pdf extension
         const printCommand = `"${loPath}" --headless --print-to-file --outdir "${cacheDir}" "${pptxPath}"`;
@@ -138,7 +138,7 @@ async function tryLibreOfficeConversion(
         
         if (fs.existsSync(printOutputPath)) {
           fs.renameSync(printOutputPath, outputPdfPath);
-          console.log('[PPTX Converter] Print-to-file conversion successful');
+          console.debug('[PPTX Converter] Print-to-file conversion successful');
           return { 
             success: true, 
             pdfPath: outputPdfPath,
@@ -146,7 +146,7 @@ async function tryLibreOfficeConversion(
           };
         }
       } catch (printError) {
-        console.log('[PPTX Converter] Print method failed, trying convert method...');
+        console.debug('[PPTX Converter] Print method failed, trying convert method...');
       }
       
       // Method 2: Fall back to convert-to with maximum quality settings
@@ -265,7 +265,7 @@ export function cleanupOldCache(daysOld: number = 7): void {
     }
     
     if (deletedCount > 0) {
-      console.log(`[PPTX Converter] Cleaned up ${deletedCount} old cached PDF(s)`);
+      console.debug(`[PPTX Converter] Cleaned up ${deletedCount} old cached PDF(s)`);
     }
   } catch (e) {
     console.error('[PPTX Converter] Error cleaning cache:', e);
@@ -282,7 +282,7 @@ export function clearCache(): void {
       for (const file of files) {
         fs.unlinkSync(path.join(CACHE_DIR, file));
       }
-      console.log('[PPTX Converter] Cache cleared');
+      console.debug('[PPTX Converter] Cache cleared');
     }
   } catch (e) {
     console.error('[PPTX Converter] Error clearing cache:', e);
@@ -311,7 +311,7 @@ export function getCacheStats(): { count: number; totalSize: number; path: strin
       totalSize,
       path: CACHE_DIR
     };
-  } catch (e) {
+  } catch {
     return { count: 0, totalSize: 0, path: CACHE_DIR };
   }
 }
@@ -323,5 +323,5 @@ export function getCacheStats(): { count: number; totalSize: number; path: strin
 export function cleanupPdf(pdfPath: string): void {
   // Don't delete cached PDFs anymore - they're managed by cleanupOldCache
   // This function is kept for backward compatibility
-  console.log('[PPTX Converter] PDF cleanup is now handled by cache management');
+  console.debug('[PPTX Converter] PDF cleanup is now handled by cache management');
 }
