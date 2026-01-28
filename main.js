@@ -27219,7 +27219,7 @@ var CACHE_DIR = path.join(os.tmpdir(), "obsidian-pptx-cache");
 function initCacheDir() {
   if (!fs.existsSync(CACHE_DIR)) {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
-    console.log("[PPTX Converter] Created cache directory:", CACHE_DIR);
+    console.debug("[PPTX Converter] Created cache directory:", CACHE_DIR);
   }
 }
 function getFileHash(filePath) {
@@ -27234,7 +27234,7 @@ function getCachedPdf(pptxPath, fileHash) {
   const baseName = path.basename(pptxPath, ext);
   const cachedPdfPath = path.join(CACHE_DIR, `${baseName}_${fileHash}.pdf`);
   if (fs.existsSync(cachedPdfPath)) {
-    console.log("[PPTX Converter] Found cached PDF:", cachedPdfPath);
+    console.debug("[PPTX Converter] Found cached PDF:", cachedPdfPath);
     return cachedPdfPath;
   }
   return null;
@@ -27250,7 +27250,7 @@ async function convertPptxToPdf(pptxPath) {
         fromCache: true
       };
     }
-    console.log("[PPTX Converter] No cache found, converting...");
+    console.debug("[PPTX Converter] No cache found, converting...");
     initCacheDir();
     const ext = path.extname(pptxPath);
     const baseName = path.basename(pptxPath, ext);
@@ -27259,7 +27259,7 @@ async function convertPptxToPdf(pptxPath) {
     if (libreOfficeResult.success) {
       return libreOfficeResult;
     }
-    console.log("[PPTX Converter] LibreOffice not available, trying iframe...");
+    console.debug("[PPTX Converter] LibreOffice not available, trying iframe...");
     return await tryIframeConversion(pptxPath);
   } catch (error) {
     console.error("[PPTX Converter] Error during conversion:", error);
@@ -27276,9 +27276,9 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
       await execAsync(`"${loPath}" --version`, {
         windowsHide: true
       });
-      console.log(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
+      console.debug(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
       try {
-        console.log("[PPTX Converter] Trying print-to-file method (better overflow handling)...");
+        console.debug("[PPTX Converter] Trying print-to-file method (better overflow handling)...");
         const printCommand = `"${loPath}" --headless --print-to-file --outdir "${cacheDir}" "${pptxPath}"`;
         await execAsync(printCommand, {
           windowsHide: true,
@@ -27287,7 +27287,7 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
         const printOutputPath = path.join(cacheDir, `${baseName}.pdf`);
         if (fs.existsSync(printOutputPath)) {
           fs.renameSync(printOutputPath, outputPdfPath);
-          console.log("[PPTX Converter] Print-to-file conversion successful");
+          console.debug("[PPTX Converter] Print-to-file conversion successful");
           return {
             success: true,
             pdfPath: outputPdfPath,
@@ -27295,7 +27295,7 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
           };
         }
       } catch (printError) {
-        console.log("[PPTX Converter] Print method failed, trying convert method...");
+        console.debug("[PPTX Converter] Print method failed, trying convert method...");
       }
       const filterData = [
         "ExportNotesPages=false",
@@ -27393,14 +27393,14 @@ function cleanupOldCache(daysOld = 7) {
       }
     }
     if (deletedCount > 0) {
-      console.log(`[PPTX Converter] Cleaned up ${deletedCount} old cached PDF(s)`);
+      console.debug(`[PPTX Converter] Cleaned up ${deletedCount} old cached PDF(s)`);
     }
   } catch (e) {
     console.error("[PPTX Converter] Error cleaning cache:", e);
   }
 }
 function cleanupPdf(pdfPath) {
-  console.log("[PPTX Converter] PDF cleanup is now handled by cache management");
+  console.debug("[PPTX Converter] PDF cleanup is now handled by cache management");
 }
 
 // src/PptxView.ts
