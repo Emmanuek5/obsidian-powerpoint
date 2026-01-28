@@ -9271,8 +9271,8 @@ if (isNodeJS) {
   warn("Please use the `legacy` build in Node.js environments.");
 }
 async function node_utils_fetchData(url) {
-  const fs2 = process.getBuiltinModule("fs");
-  const data = await fs2.promises.readFile(url);
+  const fs3 = process.getBuiltinModule("fs");
+  const data = await fs3.promises.readFile(url);
   return new Uint8Array(data);
 }
 var NodeFilterFactory = class extends BaseFilterFactory {
@@ -14091,10 +14091,10 @@ var PDFNodeStreamFsFullReader = class {
     this._readableStream = null;
     this._readCapability = Promise.withResolvers();
     this._headersCapability = Promise.withResolvers();
-    const fs2 = process.getBuiltinModule("fs");
-    fs2.promises.lstat(this._url).then((stat) => {
+    const fs3 = process.getBuiltinModule("fs");
+    fs3.promises.lstat(this._url).then((stat) => {
       this._contentLength = stat.size;
-      this._setReadableStream(fs2.createReadStream(this._url));
+      this._setReadableStream(fs3.createReadStream(this._url));
       this._headersCapability.resolve();
     }, (error) => {
       if (error.code === "ENOENT") {
@@ -14190,8 +14190,8 @@ var PDFNodeStreamFsRangeReader = class {
     this._readCapability = Promise.withResolvers();
     const source = stream.source;
     this._isStreamingSupported = !source.disableStream;
-    const fs2 = process.getBuiltinModule("fs");
-    this._setReadableStream(fs2.createReadStream(this._url, {
+    const fs3 = process.getBuiltinModule("fs");
+    this._setReadableStream(fs3.createReadStream(this._url, {
       start,
       end: end - 1
     }));
@@ -27260,12 +27260,13 @@ async function convertPptxToPdf(pptxPath) {
       return libreOfficeResult;
     }
     console.debug("[PPTX Converter] LibreOffice not available, trying iframe...");
-    return await tryIframeConversion(pptxPath);
+    return tryIframeConversion(pptxPath);
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("[PPTX Converter] Error during conversion:", error);
     return {
       success: false,
-      error: `Conversion failed: ${error.message}`
+      error: `Conversion failed: ${errorMessage}`
     };
   }
 }
@@ -27294,7 +27295,7 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
             fromCache: false
           };
         }
-      } catch (printError) {
+      } catch (e) {
         console.debug("[PPTX Converter] Print method failed, trying convert method...");
       }
       const filterData = [
@@ -27399,11 +27400,9 @@ function cleanupOldCache(daysOld = 7) {
     console.error("[PPTX Converter] Error cleaning cache:", e);
   }
 }
-function cleanupPdf(pdfPath) {
-  console.debug("[PPTX Converter] PDF cleanup is now handled by cache management");
-}
 
 // src/PptxView.ts
+var fs2 = __toESM(require("fs"));
 var PPTX_VIEW_TYPE = "pptx-view";
 GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/build/pdf.worker.min.mjs";
 var PptxView = class extends import_obsidian.FileView {
@@ -27454,7 +27453,6 @@ var PptxView = class extends import_obsidian.FileView {
   }
   cleanup() {
     if (this.currentPdfPath) {
-      cleanupPdf(this.currentPdfPath);
       this.currentPdfPath = null;
     }
     this.pdfDoc = null;
@@ -27554,7 +27552,6 @@ var PptxView = class extends import_obsidian.FileView {
     if (!this.contentContainer)
       return;
     try {
-      const fs2 = require("fs");
       const pdfData = fs2.readFileSync(pdfPath);
       const pdfUint8Array = new Uint8Array(pdfData);
       this.pdfDoc = await getDocument({ data: pdfUint8Array }).promise;
@@ -27567,10 +27564,11 @@ var PptxView = class extends import_obsidian.FileView {
       await this.createThumbnails();
       this.updateSidebarState();
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       this.contentContainer.empty();
       this.contentContainer.createDiv({
         cls: "pptx-error",
-        text: `Failed to render PDF: ${error.message}`
+        text: `Failed to render PDF: ${errorMessage}`
       });
     }
   }
@@ -27721,7 +27719,7 @@ var PowerPointPlugin = class extends import_obsidian2.Plugin {
         console.debug("[PPTX Plugin] Command triggered, active file:", file == null ? void 0 : file.path);
         if (file && (file.extension === "pptx" || file.extension === "ppt")) {
           const leaf = this.app.workspace.getLeaf("tab");
-          leaf.openFile(file, { active: true });
+          void leaf.openFile(file, { active: true });
         }
       }
     });

@@ -28,7 +28,7 @@ export default class PowerPointPlugin extends Plugin {
         console.debug('[PPTX Plugin] Command triggered, active file:', file?.path);
         if (file && (file.extension === 'pptx' || file.extension === 'ppt')) {
           const leaf = this.app.workspace.getLeaf('tab');
-          leaf.openFile(file, { active: true });
+          void leaf.openFile(file, { active: true });
         }
       }
     });

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
+    "lint": "eslint .",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "keywords": [],
@@ -13,16 +14,19 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^16.11.6",
-    "@typescript-eslint/eslint-plugin": "5.29.0",
-    "@typescript-eslint/parser": "5.29.0",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "@typescript-eslint/utils": "^8.54.0",
     "builtin-modules": "3.3.0",
     "esbuild": "0.17.3",
     "obsidian": "latest",
     "tslib": "2.4.0",
-    "typescript": "4.7.4"
+    "typescript": "5.3.3"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
+    "eslint": "^9.39.2",
+    "eslint-plugin-obsidianmd": "^0.1.9",
     "office-viewer": "^0.3.14",
     "pdfjs-dist": "^5.4.530"
   }

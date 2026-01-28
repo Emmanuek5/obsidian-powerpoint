@@ -90,12 +90,13 @@ export async function convertPptxToPdf(pptxPath: string): Promise<ConversionResu
     
     // Fallback to Office Online iframe (mobile)
     console.debug('[PPTX Converter] LibreOffice not available, trying iframe...');
-    return await tryIframeConversion(pptxPath);
-  } catch (error) {
+    return tryIframeConversion(pptxPath);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[PPTX Converter] Error during conversion:', error);
     return {
       success: false,
-      error: `Conversion failed: ${error.message}`
+      error: `Conversion failed: ${errorMessage}`
     };
   }
 }
@@ -145,7 +146,7 @@ async function tryLibreOfficeConversion(
             fromCache: false 
           };
         }
-      } catch (printError) {
+      } catch {
         console.debug('[PPTX Converter] Print method failed, trying convert method...');
       }
       

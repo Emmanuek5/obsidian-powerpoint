@@ -1,6 +1,7 @@
 import { FileView, WorkspaceLeaf, TFile } from 'obsidian';
 import * as pdfjsLib from 'pdfjs-dist';
-import { convertPptxToPdf, cleanupPdf } from './converter';
+import { convertPptxToPdf, cleanupOldCache } from './converter';
+import * as fs from 'fs';
 
 export const PPTX_VIEW_TYPE = 'pptx-view';
 
@@ -64,7 +65,7 @@ export class PptxView extends FileView {
 
   private cleanup(): void {
     if (this.currentPdfPath) {
-      cleanupPdf(this.currentPdfPath);
+      // PDFs are now managed by cache system, no need to delete manually
       this.currentPdfPath = null;
     }
     this.pdfDoc = null;
@@ -199,7 +200,6 @@ export class PptxView extends FileView {
 
     try {
       // Read PDF as binary data (can't use file:// URLs in browser)
-      const fs = require('fs');
       const pdfData = fs.readFileSync(pdfPath);
       const pdfUint8Array = new Uint8Array(pdfData);
       
@@ -221,11 +221,12 @@ export class PptxView extends FileView {
       await this.createThumbnails();
       
       this.updateSidebarState();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.contentContainer.empty();
-      this.contentContainer.createDiv({ 
-        cls: 'pptx-error', 
-        text: `Failed to render PDF: ${error.message}` 
+      this.contentContainer.createDiv({
+        cls: 'pptx-error',
+        text: `Failed to render PDF: ${errorMessage}`
       });
     }
   }
@@ -245,11 +246,11 @@ export class PptxView extends FileView {
     const ctx = this.mainCanvas.getContext('2d');
     if (!ctx) return;
 
-    await page.render({
+    await (page.render({
       canvasContext: ctx,
       viewport: viewport,
       canvas: this.mainCanvas
-    } as unknown as any).promise;
+    }) as { promise: Promise<void> }).promise;
   }
 
   private async createThumbnails(): Promise<void> {
@@ -301,11 +302,11 @@ export class PptxView extends FileView {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    await page.render({
+    await (page.render({
       canvasContext: ctx,
       viewport: viewport,
       canvas: canvas
-    } as unknown as any).promise;
+    }) as { promise: Promise<void> }).promise;
   }
 
   private async goToSlide(index: number): Promise<void> {
