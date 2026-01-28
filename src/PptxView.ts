@@ -50,6 +50,7 @@ export class PptxView extends FileView {
 
     this.createLayout(container);
     this.registerKeyboardHandlers();
+    await Promise.resolve();
   }
 
   async onLoadFile(file: TFile): Promise<void> {
@@ -58,6 +59,7 @@ export class PptxView extends FileView {
 
   async onUnloadFile(file: TFile): Promise<void> {
     this.cleanup();
+    await Promise.resolve();
   }
 
   private cleanup(): void {
@@ -95,24 +97,24 @@ export class PptxView extends FileView {
     const navGroup = toolbar.createDiv({ cls: 'pptx-toolbar-group' });
     
     this.prevButton = navGroup.createEl('button', { cls: 'pptx-toolbar-btn', attr: { 'aria-label': 'Previous slide' } });
-    this.prevButton.innerHTML = '‹';
+    this.prevButton.textContent = '‹';
     this.prevButton.addEventListener('click', () => this.previousSlide());
 
     this.slideCounter = navGroup.createDiv({ cls: 'pptx-page-counter', text: '1 of 1' });
 
     this.nextButton = navGroup.createEl('button', { cls: 'pptx-toolbar-btn', attr: { 'aria-label': 'Next slide' } });
-    this.nextButton.innerHTML = '›';
+    this.nextButton.textContent = '›';
     this.nextButton.addEventListener('click', () => this.nextSlide());
 
     // Right side: zoom
     const zoomGroup = toolbar.createDiv({ cls: 'pptx-toolbar-group' });
 
     const zoomOutBtn = zoomGroup.createEl('button', { cls: 'pptx-toolbar-btn', attr: { 'aria-label': 'Zoom out' } });
-    zoomOutBtn.innerHTML = '−';
+    zoomOutBtn.textContent = '−';
     zoomOutBtn.addEventListener('click', () => this.zoomOut());
 
     const zoomInBtn = zoomGroup.createEl('button', { cls: 'pptx-toolbar-btn', attr: { 'aria-label': 'Zoom in' } });
-    zoomInBtn.innerHTML = '+';
+    zoomInBtn.textContent = '+';
     zoomInBtn.addEventListener('click', () => this.zoomIn());
 
     this.updateSidebarState();
@@ -156,7 +158,7 @@ export class PptxView extends FileView {
 
     try {
       // Get the absolute path of the PPTX file
-      const vaultPath = (this.app.vault.adapter as any).basePath;
+      const vaultPath = (this.app.vault.adapter as unknown as { basePath: string }).basePath;
       const pptxPath = `${vaultPath}/${file.path}`;
 
       // Convert PPTX to PDF (with caching)
@@ -164,29 +166,30 @@ export class PptxView extends FileView {
 
       if (!result.success || !result.pdfPath) {
         this.contentContainer.empty();
-        this.contentContainer.createDiv({ 
-          cls: 'pptx-error pptx-install-message', 
-          text: result.error || 'Failed to convert presentation' 
+        this.contentContainer.createDiv({
+          cls: 'pptx-error pptx-install-message',
+          text: result.error || 'Failed to convert presentation'
         });
         return;
       }
 
       // Log cache status
       if (result.fromCache) {
-        console.log('[PPTX View] Loaded from cache:', result.pdfPath);
+        console.debug('[PPTX View] Loaded from cache:', result.pdfPath);
       } else {
-        console.log('[PPTX View] Converted and cached:', result.pdfPath);
+        console.debug('[PPTX View] Converted and cached:', result.pdfPath);
       }
 
       this.currentPdfPath = result.pdfPath;
 
       // Load the PDF
       await this.loadPdf(result.pdfPath);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.contentContainer.empty();
-      this.contentContainer.createDiv({ 
-        cls: 'pptx-error', 
-        text: `Failed to load presentation: ${error.message}` 
+      this.contentContainer.createDiv({
+        cls: 'pptx-error',
+        text: `Failed to load presentation: ${errorMessage}`
       });
     }
   }
@@ -246,7 +249,7 @@ export class PptxView extends FileView {
       canvasContext: ctx,
       viewport: viewport,
       canvas: this.mainCanvas
-    } as any).promise;
+    } as unknown as any).promise;
   }
 
   private async createThumbnails(): Promise<void> {
@@ -302,7 +305,7 @@ export class PptxView extends FileView {
       canvasContext: ctx,
       viewport: viewport,
       canvas: canvas
-    } as any).promise;
+    } as unknown as any).promise;
   }
 
   private async goToSlide(index: number): Promise<void> {
@@ -339,24 +342,24 @@ export class PptxView extends FileView {
 
   private previousSlide(): void {
     if (this.currentSlide > 0) {
-      this.goToSlide(this.currentSlide - 1);
+      void this.goToSlide(this.currentSlide - 1);
     }
   }
 
   private nextSlide(): void {
     if (this.currentSlide < this.totalSlides - 1) {
-      this.goToSlide(this.currentSlide + 1);
+      void this.goToSlide(this.currentSlide + 1);
     }
   }
 
   private zoomIn(): void {
     this.zoomLevel = Math.min(this.zoomLevel + 0.25, 3.0);
-    this.applyZoom();
+    void this.applyZoom();
   }
 
   private zoomOut(): void {
     this.zoomLevel = Math.max(this.zoomLevel - 0.25, 0.5);
-    this.applyZoom();
+    void this.applyZoom();
   }
 
   private updateSidebarState(): void {
@@ -376,5 +379,6 @@ export class PptxView extends FileView {
   async onClose(): Promise<void> {
     this.cleanup();
     this.file = null;
+    await Promise.resolve();
   }
 }

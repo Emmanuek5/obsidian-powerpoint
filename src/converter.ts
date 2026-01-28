@@ -175,8 +175,8 @@ async function tryLibreOfficeConversion(
       ].join(':');
       
       const command = `"${loPath}" --headless --convert-to "pdf:impress_pdf_Export:${filterData}" --outdir "${cacheDir}" "${pptxPath}"`;
-      
-      console.log('[PPTX Converter] Converting with enhanced PDF export settings...');
+
+      console.debug('[PPTX Converter] Converting with enhanced PDF export settings...');
       await execAsync(command, { 
         windowsHide: true,
         timeout: 90000  // 90 second timeout for large presentations
@@ -188,15 +188,15 @@ async function tryLibreOfficeConversion(
       if (fs.existsSync(generatedPdf)) {
         // Rename to include hash for caching
         fs.renameSync(generatedPdf, outputPdfPath);
-        console.log('[PPTX Converter] Conversion successful, cached at:', outputPdfPath);
-        return { 
-          success: true, 
+        console.debug('[PPTX Converter] Conversion successful, cached at:', outputPdfPath);
+        return {
+          success: true,
           pdfPath: outputPdfPath,
-          fromCache: false 
+          fromCache: false
         };
       }
     } catch (e) {
-      console.log(`[PPTX Converter] Failed with ${loPath}:`, e.message);
+      console.error(`[PPTX Converter] Failed with ${loPath}:`, e instanceof Error ? e.message : String(e));
       continue;
     }
   }
@@ -204,13 +204,13 @@ async function tryLibreOfficeConversion(
   return { success: false };
 }
 
-async function tryIframeConversion(pptxPath: string): Promise<ConversionResult> {
+function tryIframeConversion(pptxPath: string): ConversionResult {
   // Office Online iframe requires a publicly accessible URL
   // For local files, we'd need to serve them via HTTP
   // For now, return error explaining the limitation
   return {
     success: false,
-    error: `LibreOffice not found.\n\nDesktop: Install LibreOffice for offline conversion:\n  • macOS: brew install --cask libreoffice\n  • Windows: Download from libreoffice.org\n  • Linux: sudo apt install libreoffice\n\nMobile/Android: Local file viewing not supported yet.\n\nTo view PPTX files on mobile, you can:\n1. Open the file directly in a PPTX viewer app\n2. Upload to a cloud service and view online\n\nWe're working on mobile support!`
+    error: `LibreOffice not found.\n\nDesktop: Install LibreOffice for offline conversion:\n  brew install --cask libreoffice\n\nMobile/Android: Local file viewing not supported yet.\n\nTo view PPTX files on mobile, you can:\n1. Open the file directly in a PPTX viewer app\n2. Upload to a cloud service and view online\n\nWe're working on mobile support!`
   };
 }
 
