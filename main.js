@@ -9271,8 +9271,8 @@ if (isNodeJS) {
   warn("Please use the `legacy` build in Node.js environments.");
 }
 async function node_utils_fetchData(url) {
-  const fs2 = process.getBuiltinModule("fs");
-  const data = await fs2.promises.readFile(url);
+  const fs3 = process.getBuiltinModule("fs");
+  const data = await fs3.promises.readFile(url);
   return new Uint8Array(data);
 }
 var NodeFilterFactory = class extends BaseFilterFactory {
@@ -14091,10 +14091,10 @@ var PDFNodeStreamFsFullReader = class {
     this._readableStream = null;
     this._readCapability = Promise.withResolvers();
     this._headersCapability = Promise.withResolvers();
-    const fs2 = process.getBuiltinModule("fs");
-    fs2.promises.lstat(this._url).then((stat) => {
+    const fs3 = process.getBuiltinModule("fs");
+    fs3.promises.lstat(this._url).then((stat) => {
       this._contentLength = stat.size;
-      this._setReadableStream(fs2.createReadStream(this._url));
+      this._setReadableStream(fs3.createReadStream(this._url));
       this._headersCapability.resolve();
     }, (error) => {
       if (error.code === "ENOENT") {
@@ -14190,8 +14190,8 @@ var PDFNodeStreamFsRangeReader = class {
     this._readCapability = Promise.withResolvers();
     const source = stream.source;
     this._isStreamingSupported = !source.disableStream;
-    const fs2 = process.getBuiltinModule("fs");
-    this._setReadableStream(fs2.createReadStream(this._url, {
+    const fs3 = process.getBuiltinModule("fs");
+    this._setReadableStream(fs3.createReadStream(this._url, {
       start,
       end: end - 1
     }));
@@ -27219,7 +27219,7 @@ var CACHE_DIR = path.join(os.tmpdir(), "obsidian-pptx-cache");
 function initCacheDir() {
   if (!fs.existsSync(CACHE_DIR)) {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
-    console.log("[PPTX Converter] Created cache directory:", CACHE_DIR);
+    console.debug("[PPTX Converter] Created cache directory:", CACHE_DIR);
   }
 }
 function getFileHash(filePath) {
@@ -27234,7 +27234,7 @@ function getCachedPdf(pptxPath, fileHash) {
   const baseName = path.basename(pptxPath, ext);
   const cachedPdfPath = path.join(CACHE_DIR, `${baseName}_${fileHash}.pdf`);
   if (fs.existsSync(cachedPdfPath)) {
-    console.log("[PPTX Converter] Found cached PDF:", cachedPdfPath);
+    console.debug("[PPTX Converter] Found cached PDF:", cachedPdfPath);
     return cachedPdfPath;
   }
   return null;
@@ -27250,7 +27250,7 @@ async function convertPptxToPdf(pptxPath) {
         fromCache: true
       };
     }
-    console.log("[PPTX Converter] No cache found, converting...");
+    console.debug("[PPTX Converter] No cache found, converting...");
     initCacheDir();
     const ext = path.extname(pptxPath);
     const baseName = path.basename(pptxPath, ext);
@@ -27259,13 +27259,14 @@ async function convertPptxToPdf(pptxPath) {
     if (libreOfficeResult.success) {
       return libreOfficeResult;
     }
-    console.log("[PPTX Converter] LibreOffice not available, trying iframe...");
-    return await tryIframeConversion(pptxPath);
+    console.debug("[PPTX Converter] LibreOffice not available, trying iframe...");
+    return tryIframeConversion(pptxPath);
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("[PPTX Converter] Error during conversion:", error);
     return {
       success: false,
-      error: `Conversion failed: ${error.message}`
+      error: `Conversion failed: ${errorMessage}`
     };
   }
 }
@@ -27276,9 +27277,9 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
       await execAsync(`"${loPath}" --version`, {
         windowsHide: true
       });
-      console.log(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
+      console.debug(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
       try {
-        console.log("[PPTX Converter] Trying print-to-file method (better overflow handling)...");
+        console.debug("[PPTX Converter] Trying print-to-file method (better overflow handling)...");
         const printCommand = `"${loPath}" --headless --print-to-file --outdir "${cacheDir}" "${pptxPath}"`;
         await execAsync(printCommand, {
           windowsHide: true,
@@ -27287,15 +27288,15 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
         const printOutputPath = path.join(cacheDir, `${baseName}.pdf`);
         if (fs.existsSync(printOutputPath)) {
           fs.renameSync(printOutputPath, outputPdfPath);
-          console.log("[PPTX Converter] Print-to-file conversion successful");
+          console.debug("[PPTX Converter] Print-to-file conversion successful");
           return {
             success: true,
             pdfPath: outputPdfPath,
             fromCache: false
           };
         }
-      } catch (printError) {
-        console.log("[PPTX Converter] Print method failed, trying convert method...");
+      } catch (e) {
+        console.debug("[PPTX Converter] Print method failed, trying convert method...");
       }
       const filterData = [
         "ExportNotesPages=false",
@@ -27312,7 +27313,7 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
         // PDF 1.5 for better compatibility
       ].join(":");
       const command = `"${loPath}" --headless --convert-to "pdf:impress_pdf_Export:${filterData}" --outdir "${cacheDir}" "${pptxPath}"`;
-      console.log("[PPTX Converter] Converting with enhanced PDF export settings...");
+      console.debug("[PPTX Converter] Converting with enhanced PDF export settings...");
       await execAsync(command, {
         windowsHide: true,
         timeout: 9e4
@@ -27321,7 +27322,7 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
       const generatedPdf = path.join(cacheDir, `${baseName}.pdf`);
       if (fs.existsSync(generatedPdf)) {
         fs.renameSync(generatedPdf, outputPdfPath);
-        console.log("[PPTX Converter] Conversion successful, cached at:", outputPdfPath);
+        console.debug("[PPTX Converter] Conversion successful, cached at:", outputPdfPath);
         return {
           success: true,
           pdfPath: outputPdfPath,
@@ -27329,21 +27330,19 @@ async function tryLibreOfficeConversion(pptxPath, cacheDir, baseName, outputPdfP
         };
       }
     } catch (e) {
-      console.log(`[PPTX Converter] Failed with ${loPath}:`, e.message);
+      console.error(`[PPTX Converter] Failed with ${loPath}:`, e instanceof Error ? e.message : String(e));
       continue;
     }
   }
   return { success: false };
 }
-async function tryIframeConversion(pptxPath) {
+function tryIframeConversion(pptxPath) {
   return {
     success: false,
     error: `LibreOffice not found.
 
 Desktop: Install LibreOffice for offline conversion:
-  \u2022 macOS: brew install --cask libreoffice
-  \u2022 Windows: Download from libreoffice.org
-  \u2022 Linux: sudo apt install libreoffice
+  brew install --cask libreoffice
 
 Mobile/Android: Local file viewing not supported yet.
 
@@ -27395,17 +27394,48 @@ function cleanupOldCache(daysOld = 7) {
       }
     }
     if (deletedCount > 0) {
-      console.log(`[PPTX Converter] Cleaned up ${deletedCount} old cached PDF(s)`);
+      console.debug(`[PPTX Converter] Cleaned up ${deletedCount} old cached PDF(s)`);
     }
   } catch (e) {
     console.error("[PPTX Converter] Error cleaning cache:", e);
   }
 }
-function cleanupPdf(pdfPath) {
-  console.log("[PPTX Converter] PDF cleanup is now handled by cache management");
+function clearCache() {
+  try {
+    if (fs.existsSync(CACHE_DIR)) {
+      const files = fs.readdirSync(CACHE_DIR);
+      for (const file of files) {
+        fs.unlinkSync(path.join(CACHE_DIR, file));
+      }
+      console.debug("[PPTX Converter] Cache cleared");
+    }
+  } catch (e) {
+    console.error("[PPTX Converter] Error clearing cache:", e);
+  }
+}
+function getCacheStats() {
+  try {
+    if (!fs.existsSync(CACHE_DIR)) {
+      return { count: 0, totalSize: 0, path: CACHE_DIR };
+    }
+    const files = fs.readdirSync(CACHE_DIR);
+    let totalSize = 0;
+    for (const file of files) {
+      const stats = fs.statSync(path.join(CACHE_DIR, file));
+      totalSize += stats.size;
+    }
+    return {
+      count: files.length,
+      totalSize,
+      path: CACHE_DIR
+    };
+  } catch (e) {
+    return { count: 0, totalSize: 0, path: CACHE_DIR };
+  }
 }
 
 // src/PptxView.ts
+var fs2 = __toESM(require("fs"));
 var PPTX_VIEW_TYPE = "pptx-view";
 GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/build/pdf.worker.min.mjs";
 var PptxView = class extends import_obsidian.FileView {
@@ -27445,16 +27475,17 @@ var PptxView = class extends import_obsidian.FileView {
     container.addClass("pptx-view-container");
     this.createLayout(container);
     this.registerKeyboardHandlers();
+    await Promise.resolve();
   }
   async onLoadFile(file) {
     await this.loadPptxFile(file);
   }
   async onUnloadFile(file) {
     this.cleanup();
+    await Promise.resolve();
   }
   cleanup() {
     if (this.currentPdfPath) {
-      cleanupPdf(this.currentPdfPath);
       this.currentPdfPath = null;
     }
     this.pdfDoc = null;
@@ -27474,18 +27505,18 @@ var PptxView = class extends import_obsidian.FileView {
     const toolbar = this.mainContent.createDiv({ cls: "pptx-toolbar" });
     const navGroup = toolbar.createDiv({ cls: "pptx-toolbar-group" });
     this.prevButton = navGroup.createEl("button", { cls: "pptx-toolbar-btn", attr: { "aria-label": "Previous slide" } });
-    this.prevButton.innerHTML = "\u2039";
+    this.prevButton.textContent = "\u2039";
     this.prevButton.addEventListener("click", () => this.previousSlide());
     this.slideCounter = navGroup.createDiv({ cls: "pptx-page-counter", text: "1 of 1" });
     this.nextButton = navGroup.createEl("button", { cls: "pptx-toolbar-btn", attr: { "aria-label": "Next slide" } });
-    this.nextButton.innerHTML = "\u203A";
+    this.nextButton.textContent = "\u203A";
     this.nextButton.addEventListener("click", () => this.nextSlide());
     const zoomGroup = toolbar.createDiv({ cls: "pptx-toolbar-group" });
     const zoomOutBtn = zoomGroup.createEl("button", { cls: "pptx-toolbar-btn", attr: { "aria-label": "Zoom out" } });
-    zoomOutBtn.innerHTML = "\u2212";
+    zoomOutBtn.textContent = "\u2212";
     zoomOutBtn.addEventListener("click", () => this.zoomOut());
     const zoomInBtn = zoomGroup.createEl("button", { cls: "pptx-toolbar-btn", attr: { "aria-label": "Zoom in" } });
-    zoomInBtn.innerHTML = "+";
+    zoomInBtn.textContent = "+";
     zoomInBtn.addEventListener("click", () => this.zoomIn());
     this.updateSidebarState();
   }
@@ -27535,17 +27566,18 @@ var PptxView = class extends import_obsidian.FileView {
         return;
       }
       if (result.fromCache) {
-        console.log("[PPTX View] Loaded from cache:", result.pdfPath);
+        console.debug("[PPTX View] Loaded from cache:", result.pdfPath);
       } else {
-        console.log("[PPTX View] Converted and cached:", result.pdfPath);
+        console.debug("[PPTX View] Converted and cached:", result.pdfPath);
       }
       this.currentPdfPath = result.pdfPath;
       await this.loadPdf(result.pdfPath);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       this.contentContainer.empty();
       this.contentContainer.createDiv({
         cls: "pptx-error",
-        text: `Failed to load presentation: ${error.message}`
+        text: `Failed to load presentation: ${errorMessage}`
       });
     }
   }
@@ -27553,7 +27585,6 @@ var PptxView = class extends import_obsidian.FileView {
     if (!this.contentContainer)
       return;
     try {
-      const fs2 = require("fs");
       const pdfData = fs2.readFileSync(pdfPath);
       const pdfUint8Array = new Uint8Array(pdfData);
       this.pdfDoc = await getDocument({ data: pdfUint8Array }).promise;
@@ -27566,10 +27597,11 @@ var PptxView = class extends import_obsidian.FileView {
       await this.createThumbnails();
       this.updateSidebarState();
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       this.contentContainer.empty();
       this.contentContainer.createDiv({
         cls: "pptx-error",
-        text: `Failed to render PDF: ${error.message}`
+        text: `Failed to render PDF: ${errorMessage}`
       });
     }
   }
@@ -27578,7 +27610,13 @@ var PptxView = class extends import_obsidian.FileView {
       return;
     const page = await this.pdfDoc.getPage(pageNum + 1);
     const scale = 2 * this.zoomLevel;
-    const viewport = page.getViewport({ scale });
+    const originalViewport = page.getViewport({ scale: 1 });
+    let rotation = page.rotate;
+    if (originalViewport.height > originalViewport.width) {
+      rotation = (rotation + 270) % 360;
+      console.debug(`[PPTX View] Rotating slide ${pageNum + 1} by 270 degrees (portrait to landscape)`);
+    }
+    const viewport = page.getViewport({ scale, rotation });
     this.mainCanvas.width = viewport.width;
     this.mainCanvas.height = viewport.height;
     this.mainCanvas.style.width = `${viewport.width / 2}px`;
@@ -27611,7 +27649,7 @@ var PptxView = class extends import_obsidian.FileView {
       slideNum.setText(`${i + 1}`);
       const slideIndex = i;
       thumbnail.addEventListener("click", () => {
-        this.goToSlide(slideIndex);
+        void this.goToSlide(slideIndex);
       });
     }
   }
@@ -27619,9 +27657,14 @@ var PptxView = class extends import_obsidian.FileView {
     if (!this.pdfDoc)
       return;
     const page = await this.pdfDoc.getPage(pageNum + 1);
+    const originalViewport = page.getViewport({ scale: 1 });
+    let rotation = page.rotate;
+    if (originalViewport.height > originalViewport.width) {
+      rotation = (rotation + 270) % 360;
+    }
     const targetWidth = 120;
-    const scale = targetWidth / page.getViewport({ scale: 1 }).width * 2;
-    const viewport = page.getViewport({ scale });
+    const scale = targetWidth / page.getViewport({ scale: 1, rotation }).width * 2;
+    const viewport = page.getViewport({ scale, rotation });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     canvas.style.width = `${viewport.width / 2}px`;
@@ -27664,21 +27707,21 @@ var PptxView = class extends import_obsidian.FileView {
   }
   previousSlide() {
     if (this.currentSlide > 0) {
-      this.goToSlide(this.currentSlide - 1);
+      void this.goToSlide(this.currentSlide - 1);
     }
   }
   nextSlide() {
     if (this.currentSlide < this.totalSlides - 1) {
-      this.goToSlide(this.currentSlide + 1);
+      void this.goToSlide(this.currentSlide + 1);
     }
   }
   zoomIn() {
     this.zoomLevel = Math.min(this.zoomLevel + 0.25, 3);
-    this.applyZoom();
+    void this.applyZoom();
   }
   zoomOut() {
     this.zoomLevel = Math.max(this.zoomLevel - 0.25, 0.5);
-    this.applyZoom();
+    void this.applyZoom();
   }
   updateSidebarState() {
     if (this.slideCounter) {
@@ -27694,38 +27737,49 @@ var PptxView = class extends import_obsidian.FileView {
   async onClose() {
     this.cleanup();
     this.file = null;
+    await Promise.resolve();
   }
 };
 
 // src/main.ts
 var PowerPointPlugin = class extends import_obsidian2.Plugin {
-  async onload() {
-    console.log("[PPTX Plugin] Loading PowerPoint Viewer plugin");
+  onload() {
+    console.debug("[PPTX Plugin] Loading PowerPoint Viewer plugin");
     cleanupOldCache(7);
     this.registerView(
       PPTX_VIEW_TYPE,
       (leaf) => {
-        console.log("[PPTX Plugin] Creating new PptxView");
+        console.debug("[PPTX Plugin] Creating new PptxView");
         return new PptxView(leaf);
       }
     );
-    console.log("[PPTX Plugin] Registering .pptx and .ppt extensions");
+    console.debug("[PPTX Plugin] Registering .pptx and .ppt extensions");
     this.registerExtensions(["pptx", "ppt"], PPTX_VIEW_TYPE);
     this.addCommand({
       id: "open-pptx-file",
       name: "Open PowerPoint file",
       callback: () => {
         const file = this.app.workspace.getActiveFile();
-        console.log("[PPTX Plugin] Command triggered, active file:", file == null ? void 0 : file.path);
+        console.debug("[PPTX Plugin] Command triggered, active file:", file == null ? void 0 : file.path);
         if (file && (file.extension === "pptx" || file.extension === "ppt")) {
           const leaf = this.app.workspace.getLeaf("tab");
-          leaf.openFile(file, { active: true });
+          void leaf.openFile(file, { active: true });
         }
+      }
+    });
+    this.addCommand({
+      id: "clear-pptx-cache",
+      name: "Clear PowerPoint cache",
+      callback: () => {
+        const stats = getCacheStats();
+        const sizeMB = (stats.totalSize / (1024 * 1024)).toFixed(2);
+        clearCache();
+        new import_obsidian2.Notice(`Cleared PowerPoint cache: ${stats.count} files (${sizeMB} MB)`);
+        console.debug("[PPTX Plugin] Cache cleared:", stats);
       }
     });
   }
   onunload() {
-    console.log("Unloading PowerPoint Viewer plugin");
-    this.app.workspace.detachLeavesOfType(PPTX_VIEW_TYPE);
+    console.debug("Unloading PowerPoint Viewer plugin");
   }
 };

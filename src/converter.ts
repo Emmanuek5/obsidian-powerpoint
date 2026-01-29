@@ -24,7 +24,7 @@ const CACHE_DIR = path.join(os.tmpdir(), 'obsidian-pptx-cache');
 function initCacheDir(): void {
   if (!fs.existsSync(CACHE_DIR)) {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
-    console.log('[PPTX Converter] Created cache directory:', CACHE_DIR);
+    console.debug('[PPTX Converter] Created cache directory:', CACHE_DIR);
   }
 }
 
@@ -49,7 +49,7 @@ function getCachedPdf(pptxPath: string, fileHash: string): string | null {
   const cachedPdfPath = path.join(CACHE_DIR, `${baseName}_${fileHash}.pdf`);
   
   if (fs.existsSync(cachedPdfPath)) {
-    console.log('[PPTX Converter] Found cached PDF:', cachedPdfPath);
+    console.debug('[PPTX Converter] Found cached PDF:', cachedPdfPath);
     return cachedPdfPath;
   }
   
@@ -75,7 +75,7 @@ export async function convertPptxToPdf(pptxPath: string): Promise<ConversionResu
     }
     
     // No cache, proceed with conversion
-    console.log('[PPTX Converter] No cache found, converting...');
+    console.debug('[PPTX Converter] No cache found, converting...');
     initCacheDir();
     
     const ext = path.extname(pptxPath);
@@ -89,13 +89,14 @@ export async function convertPptxToPdf(pptxPath: string): Promise<ConversionResu
     }
     
     // Fallback to Office Online iframe (mobile)
-    console.log('[PPTX Converter] LibreOffice not available, trying iframe...');
-    return await tryIframeConversion(pptxPath);
-  } catch (error) {
+    console.debug('[PPTX Converter] LibreOffice not available, trying iframe...');
+    return tryIframeConversion(pptxPath);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[PPTX Converter] Error during conversion:', error);
     return {
       success: false,
-      error: `Conversion failed: ${error.message}`
+      error: `Conversion failed: ${errorMessage}`
     };
   }
 }
@@ -116,7 +117,7 @@ async function tryLibreOfficeConversion(
         windowsHide: true 
       });
       
-      console.log(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
+      console.debug(`[PPTX Converter] Using LibreOffice at: ${loPath}`);
       
       // Method 1: Try print-to-file first (better overflow handling)
       // This method uses the print subsystem which can better handle content
@@ -124,7 +125,7 @@ async function tryLibreOfficeConversion(
       // Note: LibreOffice 25.8+ uses --print-to-file --outdir syntax
       
       try {
-        console.log('[PPTX Converter] Trying print-to-file method (better overflow handling)...');
+        console.debug('[PPTX Converter] Trying print-to-file method (better overflow handling)...');
         // Correct syntax: --print-to-file --outdir {dir} {file}
         // Output will be named same as input but with .pdf extension
         const printCommand = `"${loPath}" --headless --print-to-file --outdir "${cacheDir}" "${pptxPath}"`;
@@ -138,15 +139,15 @@ async function tryLibreOfficeConversion(
         
         if (fs.existsSync(printOutputPath)) {
           fs.renameSync(printOutputPath, outputPdfPath);
-          console.log('[PPTX Converter] Print-to-file conversion successful');
+          console.debug('[PPTX Converter] Print-to-file conversion successful');
           return { 
             success: true, 
             pdfPath: outputPdfPath,
             fromCache: false 
           };
         }
-      } catch (printError) {
-        console.log('[PPTX Converter] Print method failed, trying convert method...');
+      } catch {
+        console.debug('[PPTX Converter] Print method failed, trying convert method...');
       }
       
       // Method 2: Fall back to convert-to with maximum quality settings
@@ -175,8 +176,8 @@ async function tryLibreOfficeConversion(
       ].join(':');
       
       const command = `"${loPath}" --headless --convert-to "pdf:impress_pdf_Export:${filterData}" --outdir "${cacheDir}" "${pptxPath}"`;
-      
-      console.log('[PPTX Converter] Converting with enhanced PDF export settings...');
+
+      console.debug('[PPTX Converter] Converting with enhanced PDF export settings...');
       await execAsync(command, { 
         windowsHide: true,
         timeout: 90000  // 90 second timeout for large presentations
@@ -188,15 +189,15 @@ async function tryLibreOfficeConversion(
       if (fs.existsSync(generatedPdf)) {
         // Rename to include hash for caching
         fs.renameSync(generatedPdf, outputPdfPath);
-        console.log('[PPTX Converter] Conversion successful, cached at:', outputPdfPath);
-        return { 
-          success: true, 
+        console.debug('[PPTX Converter] Conversion successful, cached at:', outputPdfPath);
+        return {
+          success: true,
           pdfPath: outputPdfPath,
-          fromCache: false 
+          fromCache: false
         };
       }
     } catch (e) {
-      console.log(`[PPTX Converter] Failed with ${loPath}:`, e.message);
+      console.error(`[PPTX Converter] Failed with ${loPath}:`, e instanceof Error ? e.message : String(e));
       continue;
     }
   }
@@ -204,13 +205,13 @@ async function tryLibreOfficeConversion(
   return { success: false };
 }
 
-async function tryIframeConversion(pptxPath: string): Promise<ConversionResult> {
+function tryIframeConversion(pptxPath: string): ConversionResult {
   // Office Online iframe requires a publicly accessible URL
   // For local files, we'd need to serve them via HTTP
   // For now, return error explaining the limitation
   return {
     success: false,
-    error: `LibreOffice not found.\n\nDesktop: Install LibreOffice for offline conversion:\n  • macOS: brew install --cask libreoffice\n  • Windows: Download from libreoffice.org\n  • Linux: sudo apt install libreoffice\n\nMobile/Android: Local file viewing not supported yet.\n\nTo view PPTX files on mobile, you can:\n1. Open the file directly in a PPTX viewer app\n2. Upload to a cloud service and view online\n\nWe're working on mobile support!`
+    error: `LibreOffice not found.\n\nDesktop: Install LibreOffice for offline conversion:\n  brew install --cask libreoffice\n\nMobile/Android: Local file viewing not supported yet.\n\nTo view PPTX files on mobile, you can:\n1. Open the file directly in a PPTX viewer app\n2. Upload to a cloud service and view online\n\nWe're working on mobile support!`
   };
 }
 
@@ -265,7 +266,7 @@ export function cleanupOldCache(daysOld: number = 7): void {
     }
     
     if (deletedCount > 0) {
-      console.log(`[PPTX Converter] Cleaned up ${deletedCount} old cached PDF(s)`);
+      console.debug(`[PPTX Converter] Cleaned up ${deletedCount} old cached PDF(s)`);
     }
   } catch (e) {
     console.error('[PPTX Converter] Error cleaning cache:', e);
@@ -282,7 +283,7 @@ export function clearCache(): void {
       for (const file of files) {
         fs.unlinkSync(path.join(CACHE_DIR, file));
       }
-      console.log('[PPTX Converter] Cache cleared');
+      console.debug('[PPTX Converter] Cache cleared');
     }
   } catch (e) {
     console.error('[PPTX Converter] Error clearing cache:', e);
@@ -311,7 +312,7 @@ export function getCacheStats(): { count: number; totalSize: number; path: strin
       totalSize,
       path: CACHE_DIR
     };
-  } catch (e) {
+  } catch {
     return { count: 0, totalSize: 0, path: CACHE_DIR };
   }
 }
@@ -323,5 +324,5 @@ export function getCacheStats(): { count: number; totalSize: number; path: strin
 export function cleanupPdf(pdfPath: string): void {
   // Don't delete cached PDFs anymore - they're managed by cleanupOldCache
   // This function is kept for backward compatibility
-  console.log('[PPTX Converter] PDF cleanup is now handled by cache management');
+  console.debug('[PPTX Converter] PDF cleanup is now handled by cache management');
 }

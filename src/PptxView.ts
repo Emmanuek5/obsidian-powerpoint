@@ -1,6 +1,7 @@
 import { FileView, WorkspaceLeaf, TFile } from 'obsidian';
 import * as pdfjsLib from 'pdfjs-dist';
-import { convertPptxToPdf, cleanupPdf } from './converter';
+import { convertPptxToPdf, cleanupOldCache } from './converter';
+import * as fs from 'fs';
 
 export const PPTX_VIEW_TYPE = 'pptx-view';
 
@@ -50,6 +51,7 @@ export class PptxView extends FileView {
 
     this.createLayout(container);
     this.registerKeyboardHandlers();
+    await Promise.resolve();
   }
 
   async onLoadFile(file: TFile): Promise<void> {
@@ -58,11 +60,12 @@ export class PptxView extends FileView {
 
   async onUnloadFile(file: TFile): Promise<void> {
     this.cleanup();
+    await Promise.resolve();
   }
 
   private cleanup(): void {
     if (this.currentPdfPath) {
-      cleanupPdf(this.currentPdfPath);
+      // PDFs are now managed by cache system, no need to delete manually
       this.currentPdfPath = null;
     }
     this.pdfDoc = null;
@@ -78,10 +81,10 @@ export class PptxView extends FileView {
 
     // Right side: toolbar + content
     this.mainContent = layoutContainer.createDiv({ cls: 'pptx-main-content' });
-    
+
     // Top toolbar
     this.createToolbar();
-    
+
     // Main slide content
     this.contentContainer = this.mainContent.createDiv({ cls: 'pptx-content' });
   }
@@ -93,26 +96,26 @@ export class PptxView extends FileView {
 
     // Left side: navigation
     const navGroup = toolbar.createDiv({ cls: 'pptx-toolbar-group' });
-    
+
     this.prevButton = navGroup.createEl('button', { cls: 'pptx-toolbar-btn', attr: { 'aria-label': 'Previous slide' } });
-    this.prevButton.innerHTML = '‹';
+    this.prevButton.textContent = '‹';
     this.prevButton.addEventListener('click', () => this.previousSlide());
 
     this.slideCounter = navGroup.createDiv({ cls: 'pptx-page-counter', text: '1 of 1' });
 
     this.nextButton = navGroup.createEl('button', { cls: 'pptx-toolbar-btn', attr: { 'aria-label': 'Next slide' } });
-    this.nextButton.innerHTML = '›';
+    this.nextButton.textContent = '›';
     this.nextButton.addEventListener('click', () => this.nextSlide());
 
     // Right side: zoom
     const zoomGroup = toolbar.createDiv({ cls: 'pptx-toolbar-group' });
 
     const zoomOutBtn = zoomGroup.createEl('button', { cls: 'pptx-toolbar-btn', attr: { 'aria-label': 'Zoom out' } });
-    zoomOutBtn.innerHTML = '−';
+    zoomOutBtn.textContent = '−';
     zoomOutBtn.addEventListener('click', () => this.zoomOut());
 
     const zoomInBtn = zoomGroup.createEl('button', { cls: 'pptx-toolbar-btn', attr: { 'aria-label': 'Zoom in' } });
-    zoomInBtn.innerHTML = '+';
+    zoomInBtn.textContent = '+';
     zoomInBtn.addEventListener('click', () => this.zoomIn());
 
     this.updateSidebarState();
@@ -156,7 +159,7 @@ export class PptxView extends FileView {
 
     try {
       // Get the absolute path of the PPTX file
-      const vaultPath = (this.app.vault.adapter as any).basePath;
+      const vaultPath = (this.app.vault.adapter as unknown as { basePath: string }).basePath;
       const pptxPath = `${vaultPath}/${file.path}`;
 
       // Convert PPTX to PDF (with caching)
@@ -164,29 +167,30 @@ export class PptxView extends FileView {
 
       if (!result.success || !result.pdfPath) {
         this.contentContainer.empty();
-        this.contentContainer.createDiv({ 
-          cls: 'pptx-error pptx-install-message', 
-          text: result.error || 'Failed to convert presentation' 
+        this.contentContainer.createDiv({
+          cls: 'pptx-error pptx-install-message',
+          text: result.error || 'Failed to convert presentation'
         });
         return;
       }
 
       // Log cache status
       if (result.fromCache) {
-        console.log('[PPTX View] Loaded from cache:', result.pdfPath);
+        console.debug('[PPTX View] Loaded from cache:', result.pdfPath);
       } else {
-        console.log('[PPTX View] Converted and cached:', result.pdfPath);
+        console.debug('[PPTX View] Converted and cached:', result.pdfPath);
       }
 
       this.currentPdfPath = result.pdfPath;
 
       // Load the PDF
       await this.loadPdf(result.pdfPath);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.contentContainer.empty();
-      this.contentContainer.createDiv({ 
-        cls: 'pptx-error', 
-        text: `Failed to load presentation: ${error.message}` 
+      this.contentContainer.createDiv({
+        cls: 'pptx-error',
+        text: `Failed to load presentation: ${errorMessage}`
       });
     }
   }
@@ -196,16 +200,15 @@ export class PptxView extends FileView {
 
     try {
       // Read PDF as binary data (can't use file:// URLs in browser)
-      const fs = require('fs');
       const pdfData = fs.readFileSync(pdfPath);
       const pdfUint8Array = new Uint8Array(pdfData);
-      
+
       // Load PDF document from binary data
       this.pdfDoc = await pdfjsLib.getDocument({ data: pdfUint8Array }).promise;
       this.totalSlides = this.pdfDoc.numPages;
 
       this.contentContainer.empty();
-      
+
       // Create main canvas for current slide
       this.mainCanvas = document.createElement('canvas');
       this.mainCanvas.className = 'pptx-main-canvas';
@@ -213,16 +216,17 @@ export class PptxView extends FileView {
 
       // Render first slide
       await this.renderSlide(0);
-      
+
       // Create thumbnails
       await this.createThumbnails();
-      
+
       this.updateSidebarState();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.contentContainer.empty();
-      this.contentContainer.createDiv({ 
-        cls: 'pptx-error', 
-        text: `Failed to render PDF: ${error.message}` 
+      this.contentContainer.createDiv({
+        cls: 'pptx-error',
+        text: `Failed to render PDF: ${errorMessage}`
       });
     }
   }
@@ -232,7 +236,20 @@ export class PptxView extends FileView {
 
     const page = await this.pdfDoc.getPage(pageNum + 1); // PDF pages are 1-indexed
     const scale = 2.0 * this.zoomLevel; // Base scale for quality
-    const viewport = page.getViewport({ scale });
+
+    // Get the original viewport to check dimensions
+    const originalViewport = page.getViewport({ scale: 1 });
+
+    // Detect if the page is in portrait orientation (taller than wide)
+    // PowerPoint slides are typically landscape, so we rotate portrait pages by 90 degrees
+    let rotation = page.rotate;
+    if (originalViewport.height > originalViewport.width) {
+      // Page is portrait but should be landscape - rotate by 270 degrees (counter-clockwise)
+      rotation = (rotation + 270) % 360;
+      console.debug(`[PPTX View] Rotating slide ${pageNum + 1} by 270 degrees (portrait to landscape)`);
+    }
+
+    const viewport = page.getViewport({ scale, rotation });
 
     this.mainCanvas.width = viewport.width;
     this.mainCanvas.height = viewport.height;
@@ -242,42 +259,42 @@ export class PptxView extends FileView {
     const ctx = this.mainCanvas.getContext('2d');
     if (!ctx) return;
 
-    await page.render({
+    await (page.render({
       canvasContext: ctx,
       viewport: viewport,
       canvas: this.mainCanvas
-    } as any).promise;
+    }) as { promise: Promise<void> }).promise;
   }
 
   private async createThumbnails(): Promise<void> {
     if (!this.thumbnailContainer || !this.pdfDoc) return;
-    
+
     this.thumbnailContainer.empty();
     this.pageCanvases = [];
-    
+
     for (let i = 0; i < this.totalSlides; i++) {
       const thumbnail = this.thumbnailContainer.createDiv({ cls: 'pptx-thumbnail' });
       if (i === this.currentSlide) {
         thumbnail.addClass('active');
       }
-      
+
       const preview = thumbnail.createDiv({ cls: 'pptx-thumbnail-preview' });
-      
+
       // Create thumbnail canvas
       const thumbCanvas = document.createElement('canvas');
       preview.appendChild(thumbCanvas);
       this.pageCanvases.push(thumbCanvas);
-      
+
       // Render thumbnail
       await this.renderThumbnail(i, thumbCanvas);
-      
+
       // Slide number overlay
       const slideNum = thumbnail.createDiv({ cls: 'pptx-thumbnail-number' });
       slideNum.setText(`${i + 1}`);
-      
+
       const slideIndex = i;
       thumbnail.addEventListener('click', () => {
-        this.goToSlide(slideIndex);
+        void this.goToSlide(slideIndex);
       });
     }
   }
@@ -286,9 +303,19 @@ export class PptxView extends FileView {
     if (!this.pdfDoc) return;
 
     const page = await this.pdfDoc.getPage(pageNum + 1);
+
+    // Get original viewport to check dimensions
+    const originalViewport = page.getViewport({ scale: 1 });
+
+    // Detect portrait pages and rotate to landscape
+    let rotation = page.rotate;
+    if (originalViewport.height > originalViewport.width) {
+      rotation = (rotation + 270) % 360;
+    }
+
     const targetWidth = 120;
-    const scale = (targetWidth / page.getViewport({ scale: 1 }).width) * 2; // 2x for clarity
-    const viewport = page.getViewport({ scale });
+    const scale = (targetWidth / page.getViewport({ scale: 1, rotation }).width) * 2; // 2x for clarity
+    const viewport = page.getViewport({ scale, rotation });
 
     canvas.width = viewport.width;
     canvas.height = viewport.height;
@@ -298,11 +325,11 @@ export class PptxView extends FileView {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    await page.render({
+    await (page.render({
       canvasContext: ctx,
       viewport: viewport,
       canvas: canvas
-    } as any).promise;
+    }) as { promise: Promise<void> }).promise;
   }
 
   private async goToSlide(index: number): Promise<void> {
@@ -316,7 +343,7 @@ export class PptxView extends FileView {
 
   private updateThumbnailSelection(): void {
     if (!this.thumbnailContainer) return;
-    
+
     const thumbnails = this.thumbnailContainer.querySelectorAll('.pptx-thumbnail');
     thumbnails.forEach((thumb, index) => {
       if (index === this.currentSlide) {
@@ -339,24 +366,24 @@ export class PptxView extends FileView {
 
   private previousSlide(): void {
     if (this.currentSlide > 0) {
-      this.goToSlide(this.currentSlide - 1);
+      void this.goToSlide(this.currentSlide - 1);
     }
   }
 
   private nextSlide(): void {
     if (this.currentSlide < this.totalSlides - 1) {
-      this.goToSlide(this.currentSlide + 1);
+      void this.goToSlide(this.currentSlide + 1);
     }
   }
 
   private zoomIn(): void {
     this.zoomLevel = Math.min(this.zoomLevel + 0.25, 3.0);
-    this.applyZoom();
+    void this.applyZoom();
   }
 
   private zoomOut(): void {
     this.zoomLevel = Math.max(this.zoomLevel - 0.25, 0.5);
-    this.applyZoom();
+    void this.applyZoom();
   }
 
   private updateSidebarState(): void {
@@ -376,5 +403,6 @@ export class PptxView extends FileView {
   async onClose(): Promise<void> {
     this.cleanup();
     this.file = null;
+    await Promise.resolve();
   }
 }
