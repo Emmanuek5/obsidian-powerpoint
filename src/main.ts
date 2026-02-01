@@ -22,7 +22,7 @@ export default class PowerPointPlugin extends Plugin {
 
     this.addCommand({
       id: 'open-pptx-file',
-      name: 'Open powerPoint file',
+      name: 'Open powerpoint file',
       callback: () => {
         const file = this.app.workspace.getActiveFile();
         console.debug('[PPTX Plugin] Command triggered, active file:', file?.path);
@@ -35,7 +35,7 @@ export default class PowerPointPlugin extends Plugin {
 
     this.addCommand({
       id: 'clear-pptx-cache',
-      name: 'Clear powerPoint cache',
+      name: 'Clear powerpoint cache',
       callback: () => {
         const stats = getCacheStats();
         const sizeMB = (stats.totalSize / (1024 * 1024)).toFixed(2);
